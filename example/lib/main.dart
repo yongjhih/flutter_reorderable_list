@@ -94,61 +94,31 @@ class _MyHomePageState extends State<MyHomePage> {
       body: ReorderableList(
         onReorder: this._reorderCallback,
         onReorderDone: this._reorderDone,
-        child: CustomScrollView(
-          // cacheExtent: 3000,
-          slivers: <Widget>[
-            SliverAppBar(
-              actions: <Widget>[
-                PopupMenuButton<DraggingMode>(
-                  child: Container(
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(horizontal: 30.0),
-                    child: Text("Options"),
-                  ),
-                  initialValue: _draggingMode,
-                  onSelected: (DraggingMode mode) {
-                    setState(() {
-                      _draggingMode = mode;
-                    });
-                  },
-                  itemBuilder: (BuildContext context) =>
-                      <PopupMenuItem<DraggingMode>>[
-                    const PopupMenuItem<DraggingMode>(
-                        value: DraggingMode.iOS,
-                        child: Text('iOS-like dragging')),
-                    const PopupMenuItem<DraggingMode>(
-                        value: DraggingMode.Android,
-                        child: Text('Android-like dragging')),
-                  ],
-                ),
-              ],
-              pinned: true,
-              expandedHeight: 150.0,
-              flexibleSpace: const FlexibleSpaceBar(
-                title: const Text('Demo'),
+        child: SingleChildScrollView(
+          child: Column(children: <Widget>[
+            ..._items.mapIndexed((it, index) => Padding(
+              padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).padding.bottom),
+              child: Item(
+                    data: it,
+                    // first and last attributes affect border drawn during dragging
+                    isFirst: index == 0,
+                    isLast: index == _items.length - 1,
+                    draggingMode: _draggingMode,
+                  )
               ),
             ),
-            SliverPadding(
-                padding: EdgeInsets.only(
-                    bottom: MediaQuery.of(context).padding.bottom),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (BuildContext context, int index) {
-                      return Item(
-                        data: _items[index],
-                        // first and last attributes affect border drawn during dragging
-                        isFirst: index == 0,
-                        isLast: index == _items.length - 1,
-                        draggingMode: _draggingMode,
-                      );
-                    },
-                    childCount: _items.length,
-                  ),
-                )),
           ],
         ),
       ),
-    );
+    ));
+  }
+}
+
+extension ListX<E> on List<E> {
+  Iterable<T> mapIndexed<T>(T f(E e, int i)) {
+    var i = 0;
+    return this.map((e) => f(e, i++));
   }
 }
 
