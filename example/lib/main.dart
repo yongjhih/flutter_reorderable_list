@@ -29,12 +29,11 @@ class MyHomePage extends StatefulWidget {
 }
 
 class ItemData {
-  ItemData(this.title, this.key);
+  ItemData({this.data, this.id});
 
-  final String title;
+  final String data;
 
-  // Each item in reorderable list needs stable and unique key
-  final Key key;
+  final int id;
 }
 
 enum DraggingMode {
@@ -46,40 +45,36 @@ class _MyHomePageState extends State<MyHomePage> {
   List<ItemData> _items;
   _MyHomePageState() {
     _items = List();
-    for (int i = 0; i < 500; ++i) {
+    for (int i = 0; i < 3; ++i) {
       String label = "List item $i";
-      if (i == 5) {
+      if (i == 1) {
         label += ". This item has a long label and will be wrapped.";
       }
-      _items.add(ItemData(label, ValueKey(i)));
+      _items.add(ItemData(data: label, id: i));
     }
   }
 
   // Returns index of item with given key
   int _indexOfKey(Key key) {
-    return _items.indexWhere((ItemData d) => d.key == key);
+    return _items.indexWhere((ItemData d) => ValueKey(d.id) == key);
   }
 
-  bool _reorderCallback(Key item, Key newPosition) {
-    int draggingIndex = _indexOfKey(item);
-    int newPositionIndex = _indexOfKey(newPosition);
-
-    // Uncomment to allow only even target reorder possition
-    // if (newPositionIndex % 2 == 1)
-    //   return false;
+  bool _onReorder(Key key, Key newKey) {
+    int draggingIndex = _indexOfKey(key);
+    int newPositionIndex = _indexOfKey(newKey);
 
     final draggedItem = _items[draggingIndex];
+    _items.removeAt(draggingIndex);
+    _items.insert(newPositionIndex, draggedItem);
     setState(() {
-      debugPrint("Reordering $item -> $newPosition");
-      _items.removeAt(draggingIndex);
-      _items.insert(newPositionIndex, draggedItem);
+      debugPrint("Reordering $key -> $newKey");
     });
     return true;
   }
 
-  void _reorderDone(Key item) {
-    final draggedItem = _items[_indexOfKey(item)];
-    debugPrint("Reordering finished for ${draggedItem.title}}");
+  void _onReorderDone(Key key) {
+    final draggedItem = _items[_indexOfKey(key)];
+    debugPrint("Reordering finished for ${draggedItem.data}}");
   }
 
   //
@@ -92,22 +87,28 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: ReorderableList(
-        onReorder: this._reorderCallback,
-        onReorderDone: this._reorderDone,
+        onReorder: this._onReorder,
+        //onReorderDone: this._onReorderDone,
         child: SingleChildScrollView(
           child: Column(children: <Widget>[
-            ..._items.mapIndexed((it, index) => Padding(
-              padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).padding.bottom),
-              child: Item(
-                    data: it,
-                    // first and last attributes affect border drawn during dragging
-                    isFirst: index == 0,
-                    isLast: index == _items.length - 1,
-                    draggingMode: _draggingMode,
-                  )
-              ),
+            ListTile(title: Text("Header"),),
+            ..._items.mapIndexed((it, index) => ReorderableListTile(
+              onDragBuilder: (child) =>
+                  Container(
+                      child: child,
+                      //decoration: BoxDecoration(color: Color(0xD0FFFFFF))
+                      decoration: BoxDecoration(color: Colors.green)
+                  ),
+              key: ValueKey(it.id),
+              // first and last attributes affect border drawn during dragging
+              //isFirst: index == 0,
+              //isLast: index == _items.length - 1,
+              dragHandleEnabled: _draggingMode == DraggingMode.iOS,
+              child: Text(it.data, style: Theme.of(context).textTheme.subtitle),
+              builder: (handle) => ListTile(title: Text(it.data), trailing: handle),
             ),
+            ),
+            ListTile(title: Text("Footer"),),
           ],
         ),
       ),
@@ -122,82 +123,56 @@ extension ListX<E> on List<E> {
   }
 }
 
-class Item extends StatelessWidget {
-  Item({
-    this.data,
-    this.isFirst,
-    this.isLast,
-    this.draggingMode,
-  });
+class ReorderableListTile extends StatelessWidget {
+  const ReorderableListTile({
+    @required
+    this.key,
+    this.child,
+    this.dragHandle,
+    this.builder,
+    this.dragHandleEnabled = true,
+    //this.isFirst = false,
+    //this.isLast = false,
+    this.onDragBuilder,
+  }) : assert(child != null || builder != null), super();
 
-  final ItemData data;
-  final bool isFirst;
-  final bool isLast;
-  final DraggingMode draggingMode;
+  final Widget child;
+  final Key key;
+  //final bool isFirst;
+  //final bool isLast;
+  final bool dragHandleEnabled;
+  final Widget dragHandle;
+  final Widget Function(Widget child) onDragBuilder;
+  final Widget Function(Widget dragHandle) builder;
 
   Widget _buildChild(BuildContext context, ReorderableItemState state) {
-    BoxDecoration decoration;
-
-    if (state == ReorderableItemState.dragProxy ||
-        state == ReorderableItemState.dragProxyFinished) {
-      // slightly transparent background white dragging (just like on iOS)
-      decoration = BoxDecoration(color: Color(0xD0FFFFFF));
-    } else {
-      bool placeholder = state == ReorderableItemState.placeholder;
-      decoration = BoxDecoration(
-          border: Border(
-              top: isFirst && !placeholder
-                  ? Divider.createBorderSide(context) //
-                  : BorderSide.none,
-              bottom: isLast && placeholder
-                  ? BorderSide.none //
-                  : Divider.createBorderSide(context)),
-          color: placeholder ? null : Colors.white);
-    }
-
     // For iOS dragging mode, there will be drag handle on the right that triggers
     // reordering; For android mode it will be just an empty container
-    Widget dragHandle = draggingMode == DraggingMode.iOS
+    Widget dragHandler = dragHandleEnabled
         ? ReorderableListener(
-            child: Container(
-              padding: EdgeInsets.only(right: 18.0, left: 18.0),
-              color: Color(0x08000000),
-              child: Center(
-                child: Icon(Icons.reorder, color: Color(0xFF888888)),
-              ),
-            ),
+            child: dragHandle ?? Icon(Icons.drag_handle),
           )
         : Container();
 
-    Widget content = Container(
-      decoration: decoration,
-      child: SafeArea(
+    Widget content = SafeArea(
           top: false,
           bottom: false,
           child: Opacity(
             // hide content for placeholder
             opacity: state == ReorderableItemState.placeholder ? 0.0 : 1.0,
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Expanded(
-                      child: Padding(
-                    padding:
-                        EdgeInsets.symmetric(vertical: 14.0, horizontal: 14.0),
-                    child: Text(data.title,
-                        style: Theme.of(context).textTheme.subtitle),
-                  )),
-                  // Triggers the reordering
-                  dragHandle,
-                ],
-              ),
+            child: builder?.call(dragHandler) ?? ListTile(
+              title: child,
+              trailing: dragHandler,
             ),
-          )),
-    );
+          ));
+
+    if (state == ReorderableItemState.dragProxy ||
+        state == ReorderableItemState.dragProxyFinished) {
+      content = onDragBuilder?.call(content) ?? content;
+    }
 
     // For android dragging mode, wrap the entire content in DelayedReorderableListener
-    if (draggingMode == DraggingMode.Android) {
+    if (!dragHandleEnabled) {
       content = DelayedReorderableListener(
         child: content,
       );
@@ -209,7 +184,19 @@ class Item extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ReorderableItem(
-        key: data.key, //
+        key: key,
         childBuilder: _buildChild);
   }
 }
+
+class ReorderableColumn extends StatelessWidget {
+  ReorderableColumn(this.children);
+  List<Widget> children;
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: children
+    );
+  }
+}
+
